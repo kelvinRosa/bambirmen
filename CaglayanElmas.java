@@ -14,6 +14,9 @@ public class CaglayanElmas extends ArtificialIntelligence
 	private static final long serialVersionUID = 1L;
 	private enum searchType{HORIZONTAL,VERTICAL};
 	
+	// "Pseudo-Random Number Generator"
+	private Random prng;
+	
 	/* Les méthodes disponibles depuis la classe "ArtificialIntelligence"
 	 * 
 	 * int[][] getZoneMatrix()
@@ -26,17 +29,9 @@ public class CaglayanElmas extends ArtificialIntelligence
 	 * long getTimeBeforeShrink()
 	 * int[] getNextShrinkPosition()
 	 * int[] getOwnPosition()
+	 * int getBombPosition()
 	 * 
 	 * void printZoneMatrix() (Déboggage)
-	 * 
-	 */
-	
-	/*
-	 * Performans icin:
-	 * 
-	 * 1. dimX() ve dimY() cagirmadan degerler buraya tanimlanabilir,
-	 * nasilsa terrain'in boyutlari deismiyor. Gereksiz fonksiyon
-	 * cagrisindan kurtuluruz, cosariz.
 	 * 
 	 */
 
@@ -44,6 +39,9 @@ public class CaglayanElmas extends ArtificialIntelligence
 	{
 		// Notre IA est appelé "Smart"
 		super("Smart");
+		
+		// Init. prng
+		this.prng = new Random();
 	}
 	
 	/**
@@ -65,79 +63,74 @@ public class CaglayanElmas extends ArtificialIntelligence
 		Vector<Integer> possibleMoves = getPossibleMoves(ownPosition[0], ownPosition[1]);
 		Iterator<Integer> i = possibleMoves.iterator();
 		
+		// Utilise getBombPosition() pour une bombe possible sur nous
+		//System.out.println("bombPosition:"+getBombPosition());
+		
 		int[] bomb = bombCanKillMe(ownPosition[0], ownPosition[1]);
 		
-		while (i.hasNext())
-		{
-			int move = i.next();
-			if (bomb[0] == -2 && (move <= AI_ACTION_GO_DOWN && move >= AI_ACTION_GO_UP)) // (up,down)
-				play = move;
-			else if (bomb[0] == -3 && (move <= AI_ACTION_GO_RIGHT && move >= AI_ACTION_GO_LEFT))
-				play = move;
-		}
+		//System.out.println(getOwnPosition()[0]+","+getOwnPosition()[1]);
 		
 		return play;
 	}
 	
-	public boolean wallExists(int[][] matrix, searchType s, int fix, int start, int end)
-	{
-		int min = Math.min(start, end);
-		int max = Math.max(start, end);
-		
-		if (s == searchType.HORIZONTAL)
-		{
-			for (int i = min; i <= max; i++)
-				if (matrix[i][fix] == AI_BLOCK_WALL_SOFT || matrix[i][fix] == AI_BLOCK_WALL_HARD)
-					return true;
-		}
-		else
-		{
-			for (int i = min; i <= max; i++)
-				if (matrix[fix][i] == AI_BLOCK_WALL_SOFT || matrix[fix][i] == AI_BLOCK_WALL_HARD)
-					return true;
-		}
-		return false;
-	}
-	
 	public int[] bombCanKillMe(int x, int y)
 	{
-		int[] result = new int[2];
+		int[] result = {-1, -1};
 		int[][] matrix = getZoneMatrix();
 		
 		int bombPower = 0;
-		result[0] = result[1] = -1;
+		
+		int dimX = getZoneMatrixDimX();
+		int dimY = getZoneMatrixDimY();
 		
 		// FIXME : Il peut y exister plusieurs bombes!!
 		
-		for (int i = 1; i < getZoneMatrixDimY(); i++)
+		for (int i = 1; i < dimY; i++)
 		{
 			// Cherche une bombe sur la meme ligne verticale que nous..
 			if ((bombPower = getBombPowerAt(x, i)) != -1)
 			{
+				int min = Math.min(i, y);
+				int max = Math.max(i, y);
+				boolean wallExists = false;
+						
 				// Une bombe existe : (x,i)
-				//System.out.println("Bomb(v)["+bombPower+"] X:"+x+", Y:"+i);
+				System.out.println("Bomb(v)["+bombPower+"] X:"+x+", Y:"+i);
 				
-				if ( Math.abs(y-i) <= bombPower && !wallExists(matrix, searchType.VERTICAL,x,y,i))
+				// Est-ce qu'il y a un mur entre nous?
+				for (int k = min+1; k < max && !wallExists; k++)
+					if (matrix[x][k] == AI_BLOCK_WALL_SOFT || matrix[x][k] == AI_BLOCK_WALL_HARD)
+						wallExists = true;
+				
+				if ( !wallExists && Math.abs(y-i) <= bombPower)
 				{
-					// Ça nous touche! Il faut changer y.
-					result[0] = -3;
-					result[1] = 0;
+					// Ça nous tue! Go go go!
+					System.out.println("Bombe nous tue[V]");
 				}
 			}
 		}
-		for (int j = 1; j < getZoneMatrixDimX(); j++)
-		{
+		
+		for (int j = 1; j < dimX; j++)
+		{	
 			// Cherche une bombe sur la meme ligne horizontale que nous..
 			if ((bombPower = getBombPowerAt(j, y)) != -1)
 			{
-				// Une bombe existe : (j,y)
-				//System.out.println("Bomb(h)["+bombPower+"] X:"+j+", Y:"+y);
+				int min = Math.min(j, x);
+				int max = Math.max(j, x);
+				boolean wallExists = false;
 				
-				if ( Math.abs(x-j) <= bombPower && !wallExists(matrix, searchType.HORIZONTAL,y,x,j) )
+				// Une bombe existe : (j,y)
+				System.out.println("Bomb(h)["+bombPower+"] X:"+j+", Y:"+y);
+				
+				// Est-ce qu'il y a un mur entre nous?
+				for (int k = min+1; k < max && !wallExists; k++)
+					if (matrix[k][x] == AI_BLOCK_WALL_SOFT || matrix[k][x] == AI_BLOCK_WALL_HARD)
+						wallExists = true;
+				
+				if ( !wallExists && Math.abs(x-j) <= bombPower)
 				{
-					// Ça nous touche! Il faut changer x.
-					result[0] = -2;
-					result[1] = y;
+					// Ça nous touche! Go go go!
+					System.out.println("Bombe nous tue[H]");
 				}
 			}
 		}
@@ -222,6 +215,57 @@ public class CaglayanElmas extends ArtificialIntelligence
 		for(int move = AI_ACTION_GO_UP; move <= AI_ACTION_GO_RIGHT; move++)
 			if(isMovePossible(x, y, move))
 				result.add(move);
+		return result;
+	}
+
+	/**
+	 * Calcule et renvoie la distance de Manhattan 
+	 * entre le point de coordonnées (x1,y1) et celui de coordonnées (x2,y2). 
+	 * @param x1	position du premier point
+	 * @param y1	position du premier point
+	 * @param x2	position du second point
+	 * @param y2	position du second point
+	 * @return	la distance de Manhattan entre ces deux points
+	 */
+	private int distance(int x1, int y1, int x2, int y2)
+	{	
+		int result = 0;
+		result = result + Math.abs(x1-x2);
+		result = result + Math.abs(y1-y2);
+		return result;
+	}
+	
+	/**
+	 * Parmi les blocs dont le type correspond à la valeur blockType
+	 * passée en paramètre, cette méthode cherche lequel est le plus proche
+	 * du point de coordonnées (x,y) passées en paramètres. Le résultat
+	 * prend la forme d'un tableau des deux coordonées du bloc le plus proche.
+	 * Le tableau est contient des -1 s'il n'y a aucun bloc du bon type dans la zone de jeu.
+	 * @param x	position de référence
+	 * @param y	position de référence
+	 * @param blockType	le type du bloc recherché
+	 * @return	les coordonnées du bloc le plus proche
+	 */
+	private int[] getClosestBlockPosition(int x, int y, int blockType)
+	{	
+		int minDistance = Integer.MAX_VALUE;
+		int result[] = {-1, -1}; 
+		int[][] matrix = getZoneMatrix();
+		int dimX = getZoneMatrixDimX();
+		int dimY = getZoneMatrixDimY();
+		
+		for(int i = 0; i < dimX; i++)
+			for(int j = 0; j < dimY; j++)
+				if(matrix[i][j] == blockType)
+				{	
+					int tempDistance = distance(x, y, i, j); 	
+					if(tempDistance < minDistance)
+					{	
+						minDistance = tempDistance;
+						result[0] = i;
+						result[1] = j;
+					}
+				}
 		return result;
 	}
 
