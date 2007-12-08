@@ -1,8 +1,10 @@
 package org.ai;
 
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Vector;
 import java.util.Random;
+
 
 /*
  * Projet d'Intelligence Artificielle (2007-2008) : Bomberman
@@ -12,10 +14,12 @@ import java.util.Random;
 public class CaglayanElmas extends ArtificialIntelligence
 {
 	private static final long serialVersionUID = 1L;
-	private enum searchType{HORIZONTAL,VERTICAL};
 	
 	// "Pseudo-Random Number Generator"
 	private Random prng;
+	
+	// Si n'est pas vide, il existe une destination qu'on doit arriver.
+	private int[] target;
 	
 	/* Les méthodes disponibles depuis la classe "ArtificialIntelligence"
 	 * 
@@ -59,23 +63,75 @@ public class CaglayanElmas extends ArtificialIntelligence
 		// Notre position
 		int[] ownPosition = getOwnPosition();
 		
-		// Liste des coups possibles pour jouer
-		Vector<Integer> possibleMoves = getPossibleMoves(ownPosition[0], ownPosition[1]);
-		Iterator<Integer> i = possibleMoves.iterator();
-		
-		// Utilise getBombPosition() pour une bombe possible sur nous
-		//System.out.println("bombPosition:"+getBombPosition());
-		
-		int[] bomb = bombCanKillMe(ownPosition[0], ownPosition[1]);
-		
-		//System.out.println(getOwnPosition()[0]+","+getOwnPosition()[1]);
+		// play contient l'action qu'il faut commettre pour survivre
+		play = bombCanKillMe(ownPosition[0], ownPosition[1]);
 		
 		return play;
 	}
 	
-	public int[] bombCanKillMe(int x, int y)
+	// Pas encore utilisé
+	public Integer getNextMoveToTarget(int x, int y)
 	{
-		int[] result = {-1, -1};
+		Integer result = AI_ACTION_DO_NOTHING;
+		
+		// On a une destination à aller : target[]
+		if (this.target[0] == x && this.target[1] == y)
+			this.target[0] = this.target[1] = -1;
+		
+		else
+		{
+			// On n'a pas encore arrivé.
+			int dx = this.target[0] - x;
+			int dy = this.target[1] - y;
+			
+			//Liste des coups possibles pour jouer
+			Vector<Integer> possibleMoves = getPossibleMoves(x, y);
+			Iterator<Integer> i = possibleMoves.iterator();
+			
+			if (dx == 1)
+				return AI_ACTION_GO_RIGHT;
+			
+			if (dy == 1)
+				return AI_ACTION_GO_DOWN;
+		}
+		return result;
+	}
+	
+	public Integer escapeFromBomb(int x, int y, int direction)
+	{
+		Integer result = AI_ACTION_DO_NOTHING;
+		Vector<Integer> possibleMoves = getPossibleMoves(x, y);
+		
+		if (direction == 0)
+		{
+			// Deplace sur l'horizontale.
+			if (possibleMoves.contains(AI_ACTION_GO_RIGHT))
+				result = AI_ACTION_GO_RIGHT;
+			else if(possibleMoves.contains(AI_ACTION_GO_LEFT))
+				result = AI_ACTION_GO_LEFT;
+			else if(possibleMoves.contains(AI_ACTION_GO_DOWN))
+				result = AI_ACTION_GO_DOWN;
+			else if(possibleMoves.contains(AI_ACTION_GO_UP))
+				result = AI_ACTION_GO_UP;
+		}
+		else if (direction == 1)
+		{
+			// Deplace sur la verticale.
+			if (possibleMoves.contains(AI_ACTION_GO_DOWN))
+				result = AI_ACTION_GO_DOWN;
+			else if(possibleMoves.contains(AI_ACTION_GO_UP))
+				result = AI_ACTION_GO_UP;
+			else if(possibleMoves.contains(AI_ACTION_GO_RIGHT))
+				result = AI_ACTION_GO_RIGHT;
+			else if(possibleMoves.contains(AI_ACTION_GO_LEFT))
+				result = AI_ACTION_GO_LEFT;
+		}
+		return result;
+	}
+
+	public Integer bombCanKillMe(int x, int y)
+	{
+		Integer result = AI_ACTION_DO_NOTHING;
 		int[][] matrix = getZoneMatrix();
 		
 		int bombPower = 0;
@@ -95,7 +151,7 @@ public class CaglayanElmas extends ArtificialIntelligence
 				boolean wallExists = false;
 						
 				// Une bombe existe : (x,i)
-				System.out.println("Bomb(v)["+bombPower+"] X:"+x+", Y:"+i);
+				//System.out.println("Bomb(v)["+bombPower+"] X:"+x+", Y:"+i);
 				
 				// Est-ce qu'il y a un mur entre nous?
 				for (int k = min+1; k < max && !wallExists; k++)
@@ -103,10 +159,7 @@ public class CaglayanElmas extends ArtificialIntelligence
 						wallExists = true;
 				
 				if ( !wallExists && Math.abs(y-i) <= bombPower)
-				{
-					// Ça nous tue! Go go go!
-					System.out.println("Bombe nous tue[V]");
-				}
+					return escapeFromBomb(x, y, 0);
 			}
 		}
 		
@@ -120,7 +173,7 @@ public class CaglayanElmas extends ArtificialIntelligence
 				boolean wallExists = false;
 				
 				// Une bombe existe : (j,y)
-				System.out.println("Bomb(h)["+bombPower+"] X:"+j+", Y:"+y);
+				//System.out.println("Bomb(h)["+bombPower+"] X:"+j+", Y:"+y);
 				
 				// Est-ce qu'il y a un mur entre nous?
 				for (int k = min+1; k < max && !wallExists; k++)
@@ -128,10 +181,8 @@ public class CaglayanElmas extends ArtificialIntelligence
 						wallExists = true;
 				
 				if ( !wallExists && Math.abs(x-j) <= bombPower)
-				{
-					// Ça nous touche! Go go go!
-					System.out.println("Bombe nous tue[H]");
-				}
+					return escapeFromBomb(x, y, 1);
+
 			}
 		}
 		return result;
@@ -146,25 +197,24 @@ public class CaglayanElmas extends ArtificialIntelligence
 	 * @return	vrai si ce déplacement est possible
 	 */
 	private boolean isMovePossible(int x, int y, int move)
-	{
-		boolean result = false;
-		
+	{	
+		boolean result;
 		switch(move)
-		{
-			case AI_ACTION_GO_UP:
-				result = (y > 0) && !isObstacle(x,y-1);
+		{	
+			case ArtificialIntelligence.AI_ACTION_GO_UP:
+				result = y>0 && !isObstacle(x,y-1);
 				break;
-				
-			case AI_ACTION_GO_DOWN:
-				result = (y < getZoneMatrixDimY()-1) && !isObstacle(x,y+1);
+			case ArtificialIntelligence.AI_ACTION_GO_DOWN:
+				result = y<(getZoneMatrixDimY()-1) && !isObstacle(x,y+1);
 				break;
-				
-			case AI_ACTION_GO_LEFT:
-				result = (x > 0) && !isObstacle(x-1,y);
+			case ArtificialIntelligence.AI_ACTION_GO_LEFT:
+				result = x>0 && !isObstacle(x-1,y);
 				break;
-				
-			case AI_ACTION_GO_RIGHT:
-				result = (x < getZoneMatrixDimX()-1) && !isObstacle(x+1,y);
+			case ArtificialIntelligence.AI_ACTION_GO_RIGHT:
+				result = x<(getZoneMatrixDimX()-1) && !isObstacle(x+1,y);
+				break;
+			default:
+				result = false;
 				break;
 		}
 		return result;
@@ -179,25 +229,24 @@ public class CaglayanElmas extends ArtificialIntelligence
 	 */
 	private boolean isObstacle(int x, int y)
 	{	
+		int[][] matrix = getZoneMatrix();
 		boolean result = false;
-		int state = getZoneMatrix()[x][y];
 		
 		// bombes
-		result = result || (state == AI_BLOCK_BOMB);
+		result = result || matrix[x][y] == AI_BLOCK_BOMB;
 		
 		// feu
-		result = result || (state == AI_BLOCK_FIRE);
+		result = result || matrix[x][y] == AI_BLOCK_FIRE;
 		
 		// murs
-		result = result || (state == AI_BLOCK_WALL_HARD);
-		result = result || (state == AI_BLOCK_WALL_SOFT);
+		result = result || matrix[x][y] == AI_BLOCK_WALL_HARD;
+		result = result || matrix[x][y] == AI_BLOCK_WALL_SOFT;
 		
 		// on ne sait pas quoi
-		result = result || (state == AI_BLOCK_UNKNOWN);
+		result = result || matrix[x][y] == AI_BLOCK_UNKNOWN;
 		
 		// shrink
-		result = result || (x == getNextShrinkPosition()[0] && y == getNextShrinkPosition()[1]);
-		
+		result = result || (getTimeBeforeShrink() == -1 && x == getNextShrinkPosition()[0]&& y == getNextShrinkPosition()[1]);
 		return result;
 	}
 	
