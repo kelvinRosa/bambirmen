@@ -1,10 +1,8 @@
 package org.ai;
 
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.Vector;
 import java.util.Random;
-
 
 /*
  * Projet d'Intelligence Artificielle (2007-2008) : Bomberman
@@ -64,9 +62,71 @@ public class CaglayanElmas extends ArtificialIntelligence
 		int[] ownPosition = getOwnPosition();
 		
 		// play contient l'action qu'il faut commettre pour survivre
-		play = bombCanKillMe(ownPosition[0], ownPosition[1]);
+		//play = bombCanKillMe(ownPosition[0], ownPosition[1]);
+		
+		PathFinder pf = new PathFinder(getZoneMatrix());
+		int[] closestSoftWall = getClosestBlockNeighbourhood(AI_BLOCK_WALL_SOFT);
+		
+		System.out.println("Destination ("+closestSoftWall[0]+","+closestSoftWall[1]+")");
+		pf.setStates(ownPosition, closestSoftWall);
+		pf.findShortestPath();
+		//pf.printSolution();
 		
 		return play;
+	}
+	
+	public int[] getClosestBlockNeighbourhood(int blockType)
+	{
+		// Retourne la case vide plus proche au voisinage du block (x2,y2)
+		// en utilisant distance de Manhattan en cas d'un mur "soft"
+		// sinon retourne le case lui-meme.
+		int x1 = getOwnPosition()[0];
+		int y1 = getOwnPosition()[1];
+		
+		int[] closest = getClosestBlockPosition(x1, y1, blockType);
+		if (blockType != AI_BLOCK_WALL_SOFT)
+			return closest;
+		
+		int[] result = {closest[0], closest[1]};
+		
+		//System.out.println("Block("+closest[0]+","+closest[1]+")");
+		
+		Iterator<Integer> move = getPossibleMoves(closest[0], closest[1]).iterator();
+		int distanceMin = 100;
+		
+		while (move.hasNext())
+		{
+			int[] current = {closest[0], closest[1]};
+			
+			switch (move.next())
+			{
+				case ArtificialIntelligence.AI_ACTION_GO_LEFT:
+					current[0]--;
+					break;
+	
+				case ArtificialIntelligence.AI_ACTION_GO_RIGHT:
+					current[0]++;
+					break;
+	
+				case ArtificialIntelligence.AI_ACTION_GO_UP:
+					current[1]--;
+					break;
+	
+				case ArtificialIntelligence.AI_ACTION_GO_DOWN:
+					current[1]++;
+					break;	
+			}
+			int temp = this.distance(x1, y1, current[0], current[1]);
+			//System.out.println("Result:("+current[0]+","+current[1]+")="+temp);
+			
+			if (temp <= distanceMin)
+			{
+				distanceMin = temp;
+				result[0] = current[0];
+				result[1] = current[1];
+			}
+		}
+		return result;
 	}
 	
 	// Pas encore utilisé
@@ -102,6 +162,8 @@ public class CaglayanElmas extends ArtificialIntelligence
 		Integer result = AI_ACTION_DO_NOTHING;
 		Vector<Integer> possibleMoves = getPossibleMoves(x, y);
 		
+		System.out.println("("+x+","+y+"), escapeFromBomb "+possibleMoves.toString());
+		
 		if (direction == 0)
 		{
 			// Deplace sur l'horizontale.
@@ -126,11 +188,18 @@ public class CaglayanElmas extends ArtificialIntelligence
 			else if(possibleMoves.contains(AI_ACTION_GO_LEFT))
 				result = AI_ACTION_GO_LEFT;
 		}
+		
+		System.out.println("Result :"+result);
 		return result;
 	}
 
 	public Integer bombCanKillMe(int x, int y)
 	{
+		Integer relativeDirection;
+		if ((relativeDirection = getBombPosition()) != AI_DIR_NONE)
+		{
+			System.out.println(relativeDirection);
+		}
 		Integer result = AI_ACTION_DO_NOTHING;
 		int[][] matrix = getZoneMatrix();
 		
@@ -149,17 +218,16 @@ public class CaglayanElmas extends ArtificialIntelligence
 				int min = Math.min(i, y);
 				int max = Math.max(i, y);
 				boolean wallExists = false;
-						
-				// Une bombe existe : (x,i)
-				//System.out.println("Bomb(v)["+bombPower+"] X:"+x+", Y:"+i);
 				
 				// Est-ce qu'il y a un mur entre nous?
 				for (int k = min+1; k < max && !wallExists; k++)
-					if (matrix[x][k] == AI_BLOCK_WALL_SOFT || matrix[x][k] == AI_BLOCK_WALL_HARD)
-						wallExists = true;
+					wallExists = matrix[x][k] == AI_BLOCK_WALL_SOFT || matrix[x][k] == AI_BLOCK_WALL_HARD;
 				
 				if ( !wallExists && Math.abs(y-i) <= bombPower)
+				{
+					System.out.println("Bomb(v)["+bombPower+"] X:"+x+", Y:"+i);
 					return escapeFromBomb(x, y, 0);
+				}
 			}
 		}
 		
@@ -172,17 +240,15 @@ public class CaglayanElmas extends ArtificialIntelligence
 				int max = Math.max(j, x);
 				boolean wallExists = false;
 				
-				// Une bombe existe : (j,y)
-				//System.out.println("Bomb(h)["+bombPower+"] X:"+j+", Y:"+y);
-				
 				// Est-ce qu'il y a un mur entre nous?
 				for (int k = min+1; k < max && !wallExists; k++)
-					if (matrix[k][x] == AI_BLOCK_WALL_SOFT || matrix[k][x] == AI_BLOCK_WALL_HARD)
-						wallExists = true;
+					wallExists = matrix[k][y] == AI_BLOCK_WALL_SOFT || matrix[k][y] == AI_BLOCK_WALL_HARD;
 				
 				if ( !wallExists && Math.abs(x-j) <= bombPower)
+				{
+					System.out.println("Bomb(h)["+bombPower+"] X:"+j+", Y:"+y);
 					return escapeFromBomb(x, y, 1);
-
+				}
 			}
 		}
 		return result;
